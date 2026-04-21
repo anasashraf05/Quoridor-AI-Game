@@ -1,5 +1,6 @@
+from src.core.enums import DIFFICULTY
 class AIPlayer:
-    def __init__(self, player_id, start_position, goal_row, difficulty="Medium"):
+    def __init__(self, player_id, start_position, goal_row, difficulty = DIFFICULTY.MEDIUM):
         """
         Sets up the AI player. 
         Bonus feature: You can pass in different difficulty levels here!

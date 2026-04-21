@@ -12,3 +12,8 @@ class ItemType(Enum):
 class Orientation(Enum):
     VERTICAL = auto()
     HORIZONTAL = auto()
+
+class DIFFICULTY(Enum):
+    EASY = auto()
+    MEDIUM = auto()
+    HARD = auto()

@@ -71,10 +71,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 # ODD rows/cols are Wall Gaps (we leave them blank or draw tiny invisible rects for clicking)
                 else:
                     if col % 2 == 1 and row % 2 == 0:
-                        rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_VERTICAL, "transparent")
+                        rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_VERTICAL, "green")
 
                     if col % 2 == 0 and row % 2 == 1:
-                        rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_HORIZONTAL, "transparent")
+                        rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_HORIZONTAL, "white")
                         
                 if rect is not None:
                     self.scene.addItem(rect)
@@ -99,8 +99,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return rect
 
     def draw_wall(self, x_pos, y_pos, row, col, itemType, color):
-        width = self.GAP_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else self.SQUARE_SIZE
-        height = self.SQUARE_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else self.GAP_SIZE
+        width = self.GAP_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else 2*self.SQUARE_SIZE
+        height = 2*self.SQUARE_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else self.GAP_SIZE
 
         rect = QtWidgets.QGraphicsRectItem(x_pos, y_pos, width, height)
         if color == "transparent":

@@ -1,5 +1,7 @@
 from src.core.enums import GameMode
+from src.core.board import Board
 from src.core.player import Player
+from src.core.rules import Rules
 
 class GameController:
     def __init__(self, mode = GameMode.PVP):
@@ -20,12 +22,21 @@ class GameController:
         """
         Resets the board, places pawns in starting positions, and tells the UI to draw.
         """
-        # Create Player 1 (top row, middle column) and Player 2 (bottom row, middle column)
+        # 1. Create the physical board
+        self.board = Board()
+        
+        # 2. Create Player 1 (top row, middle column) and Player 2 (bottom row, middle column)
         self.players = [
             Player(player_id=1, start_pos=(0, 4), goal_row=8),
             Player(player_id=2, start_pos=(8, 4), goal_row=0)
         ]
-        self.current_player_index = 0  # Player 1 goes first
+        
+        # 3. Tell the board where the players are starting
+        self.board.move_pawn(1, (0, 4))
+        self.board.move_pawn(2, (8, 4))
+        
+        self.current_player_index = 0
+        
 
     def handle_pawn_move_attempt(self, target_pos):
         """
@@ -35,20 +46,25 @@ class GameController:
         3. Checks Rules.is_winner()[cite: 12].
         4. If no winner, calls self.end_turn().
         """
-        # TODO:
         current_player = self.players[self.current_player_index]
-        # if self.Rules.is_valid_pawn_move():
-        current_player.position = target_pos
-        print(f"Player {current_player.player_id} moved to {target_pos}")
-
-        # 3. Tell the UI to move the visual circle
-        self.ui.move_pawn(current_player.player_id, target_pos)
-
-        # 4. End the turn (Switch between 0 and 1)
-        self.current_player_index = 1 if self.current_player_index == 0 else 0
         
-        # 5. Optional: Update the UI turn label
-        self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+        # 1. THE REFEREE CHECK: Pass the board, the start, and the target!
+        if Rules.is_valid_pawn_move(self.board, current_player.position, target_pos):
+            
+            # 2. If valid, update the core rules and board
+            current_player.position = target_pos
+            self.board.move_pawn(current_player.player_id, target_pos)
+            print(f"Player {current_player.player_id} legally moved to {target_pos}")
+            
+            # 3. Update the UI
+            self.ui.move_pawn(current_player.player_id, target_pos)
+
+            # 4. End the turn
+            self.current_player_index = 1 if self.current_player_index == 0 else 0
+            self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+            
+        else:
+            print(f"ILLEGAL MOVE: Blocked by rules!")
 
     def handle_wall_placement_attempt(self, x, y, orientation):
         """
