@@ -1,4 +1,5 @@
 from src.core.enums import Orientation
+from src.core.wall import Wall
 
 class Board:
     def __init__(self):
@@ -29,28 +30,15 @@ class Board:
         Checks if a placed wall physically blocks the path between pos1 and pos2.
         pos1 and pos2 are tuples like (row, col).
         """
-        r1, c1 = pos1
-        r2, c2 = pos2
+        attempted_edge_1 = (pos1, pos2)
+        attempted_edge_2 = (pos2, pos1)
 
         for wall in self.walls:
-            # Check for HORIZONTAL walls blocking a vertical move
-            if wall.orientation == Orientation.HORIZONTAL:
-                # A horizontal wall at (row, col) blocks (row, col) to (row+1, col) 
-                # AND it blocks (row, col+1) to (row+1, col+1) because it spans two squares!
-                if (r1 == wall.row and r2 == wall.row + 1) or (r2 == wall.row and r1 == wall.row + 1):
-                    if c1 == wall.col or c1 == wall.col + 1:
-                        if c1 == c2: # Ensure it's actually a straight vertical move
-                            return True
-
-            # Check for VERTICAL walls blocking a horizontal move
-            elif wall.orientation == Orientation.VERTICAL:
-                # A vertical wall at (row, col) blocks (row, col) to (row, col+1)
-                # AND it blocks (row+1, col) to (row+1, col+1)
-                if (c1 == wall.col and c2 == wall.col + 1) or (c2 == wall.col and c1 == wall.col + 1):
-                    if r1 == wall.row or r1 == wall.row + 1:
-                        if r1 == r2: # Ensure it's actually a straight horizontal move
-                            return True
-
+            blocked_edges = wall.get_blocked_edges()
+            # If the player's path matches the wall's blocked path, stop them!
+            if attempted_edge_1 in blocked_edges or attempted_edge_2 in blocked_edges:
+                return True
+            
         # If we check every wall and none of them block the path, the way is clear!
         return False
     

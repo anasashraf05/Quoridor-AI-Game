@@ -13,7 +13,7 @@ class Rules:
         r2, c2 = target_pos
 
         # 1. OUT OF BOUNDS: Target must be inside the 9x9 grid (0 to 8)
-        if not (0 <= r2 <= 8 and 0 <= c2 <= 8):
+        if not (0 <= r2 <= 9 and 0 <= c2 <= 9):
             return False
 
         # 2. FIND THE OPPONENT: Ask the board where the other guy is

@@ -2,6 +2,7 @@ from src.core.enums import GameMode
 from src.core.board import Board
 from src.core.player import Player
 from src.core.rules import Rules
+from src.core.wall import Wall
 
 class GameController:
     def __init__(self, mode = GameMode.PVP):
@@ -27,13 +28,13 @@ class GameController:
         
         # 2. Create Player 1 (top row, middle column) and Player 2 (bottom row, middle column)
         self.players = [
-            Player(player_id=1, start_pos=(0, 4), goal_row=8),
-            Player(player_id=2, start_pos=(8, 4), goal_row=0)
+            Player(player_id=1, start_pos=(1, 5), goal_row=9),
+            Player(player_id=2, start_pos=(9, 5), goal_row=1)
         ]
         
         # 3. Tell the board where the players are starting
-        self.board.move_pawn(1, (0, 4))
-        self.board.move_pawn(2, (8, 4))
+        self.board.move_pawn(1, (1, 5))
+        self.board.move_pawn(2, (9, 5))
         
         self.current_player_index = 0
         
@@ -74,6 +75,9 @@ class GameController:
         3. If valid, updates Board, deducts a wall from the player, and calls self.end_turn().
         """
         print("WALLL1!")
+        myWall = Wall(x, y, orientation)
+        self.board.place_wall(myWall)
+        print(myWall.row, myWall.col)
         pass
 
     def end_turn(self):

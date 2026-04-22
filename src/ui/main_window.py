@@ -4,7 +4,7 @@ from src.core.enums import ItemType, Orientation
 class MainWindow(QtWidgets.QMainWindow):
     SQUARE_SIZE = 50  # Pixels for the pawn squares
     GAP_SIZE = 15    # Pixels for the wall gaps
-    square_grids = 9  # Player Square grids  
+    square_grids = 9  # Visual Square grids  
     total_grids = 2 * square_grids - 1 # Total grids including wall grids
 
     def __init__(self, controller):
@@ -71,10 +71,14 @@ class MainWindow(QtWidgets.QMainWindow):
                 # ODD rows/cols are Wall Gaps (we leave them blank or draw tiny invisible rects for clicking)
                 else:
                     if col % 2 == 1 and row % 2 == 0:
-                        rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_VERTICAL, "green")
+                        # For outer edges bug
+                        if row < self.total_grids - 1:
+                            rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_VERTICAL, "green")
 
                     if col % 2 == 0 and row % 2 == 1:
-                        rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_HORIZONTAL, "white")
+                        # For outer edges bug
+                        if col < self.total_grids - 1:
+                            rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_HORIZONTAL, "white")
                         
                 if rect is not None:
                     self.scene.addItem(rect)
@@ -94,13 +98,13 @@ class MainWindow(QtWidgets.QMainWindow):
         # You can attach data to this rectangle so when it's clicked, 
         # you know exactly which logical board square it is!
         rect.setData(0, ItemType.PAWN_SQUARE)
-        rect.setData(1, (row//2, col//2))
+        rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
 
         return rect
 
     def draw_wall(self, x_pos, y_pos, row, col, itemType, color):
-        width = self.GAP_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else 2*self.SQUARE_SIZE
-        height = 2*self.SQUARE_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else self.GAP_SIZE
+        width = self.GAP_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else 2 * self.SQUARE_SIZE + self.GAP_SIZE
+        height = 2 * self.SQUARE_SIZE + self.GAP_SIZE if itemType == ItemType.WALL_GAP_VERTICAL else self.GAP_SIZE
 
         rect = QtWidgets.QGraphicsRectItem(x_pos, y_pos, width, height)
         if color == "transparent":
@@ -114,19 +118,21 @@ class MainWindow(QtWidgets.QMainWindow):
             rect.setPen(QtGui.QPen(QtCore.Qt.GlobalColor.black))
 
         rect.setData(0, itemType)
-        rect.setData(1, (row//2 + 1, col//2 + 1))
+        rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
 
         return rect
     
     def move_pawn(self, player_id, logical_coords):
         row, col = logical_coords
+        visual_row = row - 1    # Convert back into 0 based index      
+        visual_col = col - 1
 
         # Your math to convert logical grid to pixel coordinates
         radius = self.SQUARE_SIZE * 0.3
         
         # Calculate the center of the clicked square
-        cx = col * (self.SQUARE_SIZE + self.GAP_SIZE) + (self.SQUARE_SIZE / 2)
-        cy = row * (self.SQUARE_SIZE + self.GAP_SIZE) + (self.SQUARE_SIZE / 2)
+        cx = visual_col * (self.SQUARE_SIZE + self.GAP_SIZE) + (self.SQUARE_SIZE / 2)
+        cy = visual_row * (self.SQUARE_SIZE + self.GAP_SIZE) + (self.SQUARE_SIZE / 2)
         
         # Calculate top-left corner for the circle
         new_x = cx - radius
@@ -153,7 +159,6 @@ class MainWindow(QtWidgets.QMainWindow):
             item_type = clicked_item.data(0)
             logical_coords = clicked_item.data(1) 
 
-            # USE THE ENUMS HERE
             if item_type == ItemType.PAWN_SQUARE:
                 self.controller.handle_pawn_move_attempt((logical_coords[0], logical_coords[1]))
                 
