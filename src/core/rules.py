@@ -86,7 +86,7 @@ class Rules:
         return False
 
     @staticmethod
-    def is_valid_wall_placement(board, new_wall):
+    def is_valid_wall_placement(board, new_wall, path_exists):
         """
         Checks if a wall placement is valid:
         1. Is it within the board boundaries?
@@ -119,6 +119,9 @@ class Rules:
                 if orientation != existing_wall.orientation:
                     if wall_row == existing_wall.row and wall_col == existing_wall.col:
                         return False
+        
+        if not ( path_exists(board, board.get_pawn_position(1), [0]) and path_exists(board, board.get_pawn_position(2), [8]) ):
+            return False # if either player is trapped after this wall placement, it's invalid
                     
         return True
 
