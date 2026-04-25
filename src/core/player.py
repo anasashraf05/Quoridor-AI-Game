@@ -13,8 +13,8 @@ class Player:
 
     def use_wall(self):
         """Decrements the player's wall count by 1."""
-        if self.has_walls_left:
-            self.walls_left -= self.walls_left
+        if self.has_walls_left():
+            self.walls_left -= 1 #amgad it was self.walls_left -=  self.walls_left, which is wrong because it will set walls_left to 0 after the first use
         
     def has_walls_left(self):
         """Returns True if walls_left > 0, otherwise False."""
