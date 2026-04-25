@@ -42,7 +42,23 @@ class Board:
         # If we check every wall and none of them block the path, the way is clear!
         return False
     
+    def is_diagonal_path_blocked(self, opponent_pos, diagonal_target):
+        """
+        Checks if a diagonal jump from opponent_pos to diagonal_target is blocked.
+        A diagonal jump is blocked
+    
+        """
+        opp_r, opp_c = opponent_pos
+        tgt_r, tgt_c = diagonal_target
+    
+        corner1 = (opp_r, tgt_c)  # horizantal edge
+        corner2 = (tgt_r, opp_c)  # vertical edge
+    
+        # If either edge has a wall, the diagonal path is blocked
+        return (self.has_wall_between(opponent_pos, corner1) or 
+            self.has_wall_between(opponent_pos, corner2))
+    
     # TODO:
     def clone(self):
-        """Creates a deep copy of the board state (super useful for the AI later)."""
+        """Creates a deep copy of the board state (super useful for the AI later).""" #amgad we will need to implement all valid moves for AI to
         pass
