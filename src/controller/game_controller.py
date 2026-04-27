@@ -8,7 +8,7 @@ class GameController:
     def __init__(self, mode = GameMode.PVP):
         """
         Initializes the entire game state.
-        mode: "PvP" (Human vs Human) or "PvE" (Human vs AI) [cite: 37, 38]
+        mode: "PvP" (Human vs Human) or "PvE" (Human vs AI)
         """
         # Here you will instantiate your Board, Players, and AI
         self.board = None  
@@ -61,7 +61,7 @@ class GameController:
             self.ui.move_pawn(current_player.player_id, target_pos)
 
             # 4. End the turn
-            self.current_player_index = 1 if self.current_player_index == 0 else 0
+            self.current_player_index = 1 if self.current_player_index == 0 else 0  # use end_turn method
             self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
             
         else:
@@ -70,21 +70,35 @@ class GameController:
     def handle_wall_placement_attempt(self, x, y, orientation):
         """
         Called by the UI when a human attempts to place a wall.
-        1. Checks Rules.is_valid_wall_placement()[cite: 22].
-        2. Checks Pathfinder.path_exists() to ensure no one is trapped[cite: 23, 24, 34].
+        1. Checks if current player has walls left.
+        2. Checks Rules.is_valid_wall_placement().
         3. If valid, updates Board, deducts a wall from the player, and calls self.end_turn().
         """
-        print("WALLL1!")
-        myWall = Wall(x, y, orientation)
-        self.board.place_wall(myWall)
-        print(myWall.row, myWall.col)
-        pass
+        current_player = self.players[self.current_player_index]
+        # 1. Make sure they actually have walls left!
+        if not current_player.has_walls_left():
+            print(f"Player {current_player.player_id} is out of walls!")
+            return
+        
+        new_wall = Wall(x, y, orientation)
+        
+        if(Rules.is_valid_wall_placement(self.board, new_wall)):
+            self.board.place_wall(new_wall)
+            current_player.use_wall()
+            print(f"Player {current_player.player_id} legally placed wall at ({new_wall.row, new_wall.col})")
+            self.ui.place_wall_visually(new_wall.row, new_wall.col, orientation)
+            # 5. End the turn
+            self.current_player_index = 1 if self.current_player_index == 0 else 0      # use end_turn method
+            self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+        else:
+            print("ILLEGAL WALL ATTEMPT: Blocked by rules")
+        
 
     def end_turn(self):
         """
         Switches current_player_index to the next player.
         If the new player is an AI (in PvE mode), it triggers the AI to calculate its move.
-        Finally, tells the UI to update the visuals and turn indicators[cite: 41].
+        Finally, tells the UI to update the visuals and turn indicators.
         """
         pass
 

@@ -1,5 +1,6 @@
 import src.ui.main_window       # check this import, we just need square_grids
-#amgad we will need to implement all valid moves for AI to see all the valid moves
+from src.core.pathfinder import Pathfinder
+from src.core.enums import Orientation
 
 class Rules:
     @staticmethod
@@ -13,15 +14,15 @@ class Rules:
         r1, c1 = current_pos
         r2, c2 = target_pos
 
-        # 1. OUT OF BOUNDS: Target must be inside the 9x9 grid (0 to 8)
-        if not (0 <= r2 < 9 and 0 <= c2 < 9): # amgad check be < 9 not <= 8
+        # 1. OUT OF BOUNDS: Target must be inside the 9x9 grid (1 to 9)
+        if not (0 < r2 <= 9 and 0 < c2 <= 9):
             return False
 
         # 2. FIND THE OPPONENT: Ask the board where the other guy is
         opponent_pos = None
         for pid, pos in board.pawn_positions.items():
             if pos != current_pos:
-                opponent_pos = pos  # ask amgad can the opponent pos still be none
+                opponent_pos = pos
 
         # 3. OCCUPIED: You cannot land exactly on your opponent's head
         if target_pos == opponent_pos:
@@ -57,13 +58,14 @@ class Rules:
 
         # 6. DIAGONAL JUMP (1 step row, 1 step col)
         elif row_diff == 1 and col_diff == 1:  
-            # Diagonal jumps in Quoridor are complex! You can only do them if the 
-            # straight jump is blocked by a wall. We will add this beast later
 
             opp_r, opp_c = opponent_pos
 
             if abs(opp_r - r1) + abs(opp_c - c1) != 1:
                 # Opponent is not adjacent, so diagonal jump is not possible
+                return False
+            # Is there a wall directly between us and the opponent?
+            if board.has_wall_between(current_pos, opponent_pos):
                 return False
             
             dr = opp_r - r1
@@ -73,11 +75,14 @@ class Rules:
             jump_pos = (jump_r, jump_c)
 
             # straight jump is possible, so diagonal jump is not allowed
-            if (0 <= jump_r < 9 and 0 <= jump_c < 9 and not board.has_wall_between(opponent_pos,jump_pos)):
+            if (0 < jump_r <= 9 and 0 < jump_c <= 9 and not board.has_wall_between(opponent_pos,jump_pos)):
                 return False 
             
             # check if diagonal path is blocked by a wall
             if board.is_diagonal_path_blocked(opponent_pos, target_pos):
+                return False
+            
+            if board.has_wall_between(opponent_pos, target_pos):
                 return False
                        
             return True
@@ -86,7 +91,7 @@ class Rules:
         return False
 
     @staticmethod
-    def is_valid_wall_placement(board, new_wall, path_exists):
+    def is_valid_wall_placement(board, new_wall):
         """
         Checks if a wall placement is valid:
         1. Is it within the board boundaries?
@@ -96,11 +101,9 @@ class Rules:
         wall_row = new_wall.row
         wall_col = new_wall.col
         orientation = new_wall.orientation
-        if orientation not in ['horizontal', 'vertical']: # wrong orientation
-            return False
-        
+
         # 1. OUT OF BOUNDS: The anchor point of the wall must be within the 8x8 area (since it occupies 2 spaces)
-        if not (0 <= wall_row < 8 and 0 <= wall_col< 8): 
+        if not (0 < wall_row < 9 and 0 < wall_col < 9): 
             return False
         
         # 2. OVERLAP/CROSS: Check against all existing walls
@@ -108,21 +111,31 @@ class Rules:
             row_diff = abs(existing_wall.row - wall_row)
             col_diff = abs(existing_wall.col - wall_col)
 
+        #TODO: OUTER EDGES STILL BUGGY
+
             if orientation == existing_wall.orientation:
-                # Same orientation: Check if they share the same anchor point
-                if ( row_diff==0 or row_diff ==1) and wall_col == existing_wall.col:
-                    return False
-                if ( col_diff==0 or col_diff ==1) and wall_row == existing_wall.row:
-                    return False
-            else:
-                # Check for crossing
-                if orientation != existing_wall.orientation:
-                    if wall_row == existing_wall.row and wall_col == existing_wall.col:
+                if orientation == Orientation.HORIZONTAL:
+                    # Horizontal walls only overlap if they are in the EXACT SAME ROW, 
+                    # and their columns are within 1 space of each other.
+                    if row_diff == 0 and col_diff <= 1:
                         return False
-        
-        if not ( path_exists(board, board.get_pawn_position(1), [0]) and path_exists(board, board.get_pawn_position(2), [8]) ):
+                elif orientation == Orientation.VERTICAL:
+                    # Vertical walls only overlap if they are in the EXACT SAME COLUMN,
+                    # and their rows are within 1 space of each other.
+                    if col_diff == 0 and row_diff <= 1:
+                        return False
+            else:
+                # Check for crossing (Horizontal vs Vertical)
+                if wall_row == existing_wall.row and wall_col == existing_wall.col:
+                    return False
+                
+        board.walls.append(new_wall)
+        if not (Pathfinder.path_exists(board, board.get_pawn_position(1), [9]) and 
+        Pathfinder.path_exists(board, board.get_pawn_position(2), [1])):
+            board.walls.pop()
             return False # if either player is trapped after this wall placement, it's invalid
-                    
+        
+        board.walls.pop()                
         return True
 
     @staticmethod
@@ -132,6 +145,3 @@ class Rules:
         """
         r1, c1 = player.position
         return r1 == player.goal_row
-    
-
-    

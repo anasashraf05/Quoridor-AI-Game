@@ -73,7 +73,7 @@ class MainWindow(QtWidgets.QMainWindow):
                     if col % 2 == 1 and row % 2 == 0:
                         # For outer edges bug
                         if row < self.total_grids - 1:
-                            rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_VERTICAL, "green")
+                            rect = self.draw_wall(x_pos, y_pos, row, col, ItemType.WALL_GAP_VERTICAL, "white")
 
                     if col % 2 == 0 and row % 2 == 1:
                         # For outer edges bug
@@ -121,7 +121,38 @@ class MainWindow(QtWidgets.QMainWindow):
         rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
 
         return rect
-    
+    #TODO: MOVE HIGHLIGHTER
+    #TODO: CLEAN THIS SHIT
+    def place_wall_visually(self, logical_row, logical_col, orientation):
+        # 1. Convert 1-based logical coordinates back to 0-based for pixel math
+        r = logical_row - 1
+        c = logical_col - 1
+
+        # 2. Find the top-left corner of the adjacent pawn square
+        x_offset = c * (self.SQUARE_SIZE + self.GAP_SIZE)
+        y_offset = r * (self.SQUARE_SIZE + self.GAP_SIZE)
+
+        # 3. Shift the coordinates into the gap based on orientation
+        # (This safely handles both string "horizontal" and Enum Orientation.HORIZONTAL)
+        if str(orientation).endswith("HORIZONTAL") or orientation == "horizontal":
+            # Horizontal walls sit directly BELOW the row's square
+            x_pos = x_offset
+            y_pos = y_offset + self.SQUARE_SIZE
+            item_type = ItemType.WALL_GAP_HORIZONTAL
+            
+        else:
+            # Vertical walls sit directly to the RIGHT of the column's square
+            x_pos = x_offset + self.SQUARE_SIZE
+            y_pos = y_offset
+            item_type = ItemType.WALL_GAP_VERTICAL
+
+        # 4. Use your existing draw method, but make it a solid color (e.g., saddlebrown)
+        # Note: We pass 0, 0 for row/col here because this visual overlay doesn't need to be clicked again
+        solid_wall = self.draw_wall(x_pos, y_pos, 0, 0, item_type, "saddlebrown")
+
+        # 5. Add it to the stage!
+        self.scene.addItem(solid_wall)
+
     def move_pawn(self, player_id, logical_coords):
         row, col = logical_coords
         visual_row = row - 1    # Convert back into 0 based index      

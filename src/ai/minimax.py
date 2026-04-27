@@ -9,7 +9,7 @@ class Minimax:
         pass
 
     @staticmethod
-    def _minimax(board, depth, alpha, beta, is_maximizing_player, current_player_id):
+    def minimax(board, depth, alpha, beta, is_maximizing_player, current_player_id):
         """
         The recursive function that actually does the simulation.
         depth: How many turns into the future to look.
@@ -19,7 +19,7 @@ class Minimax:
         pass
 
     @staticmethod
-    def _get_all_legal_actions(board, player_id):
+    def get_all_legal_actions(board, player_id):
         """
         A helper method that looks at the current board and generates a list of 
         EVERY possible valid pawn move and EVERY possible valid wall placement 

@@ -1,9 +1,6 @@
 from operator import pos
-
 from src.core import board
-
 from collections import deque
-
 
 class Pathfinder:
 
@@ -18,7 +15,7 @@ class Pathfinder:
         for dr, dc in directions:
             nr, nc = r + dr, c + dc
 
-            if 0 <= nr < 9 and 0 <= nc < 9: # boundary check
+            if not (0 < nr <= 9 and 0 < nc <= 9): # boundary check
                 continue
 
             next_pos = (nr, nc) #
