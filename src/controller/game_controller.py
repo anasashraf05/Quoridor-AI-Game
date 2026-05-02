@@ -1,8 +1,11 @@
+from PyQt6 import QtCore
+
 from src.core.enums import GameMode
 from src.core.board import Board
 from src.core.player import Player
 from src.core.rules import Rules
 from src.core.wall import Wall
+from PyQt6.QtCore import QTimer
 
 class GameController:
     def __init__(self, mode = GameMode.PVP):
@@ -18,6 +21,7 @@ class GameController:
         
         # You will attach your UI window here later so the controller can talk to it
         self.ui = None 
+        self.game_over = False # Flag to track if the game has ended
 
     def start_game(self):
         """
@@ -37,6 +41,9 @@ class GameController:
         self.board.move_pawn(2, (9, 5))
         
         self.current_player_index = 0
+        self.game_over = False
+
+        self.update_move_highlights() # Highlight valid moves for the starting player
         
 
     def handle_pawn_move_attempt(self, target_pos):
@@ -47,6 +54,8 @@ class GameController:
         3. Checks Rules.is_winner()[cite: 12].
         4. If no winner, calls self.end_turn().
         """
+        if self.game_over: return # Ignore any actions if the game has ended
+
         current_player = self.players[self.current_player_index]
         
         # 1. THE REFEREE CHECK: Pass the board, the start, and the target!
@@ -60,9 +69,16 @@ class GameController:
             # 3. Update the UI
             self.ui.move_pawn(current_player.player_id, target_pos)
 
-            # 4. End the turn
-            self.current_player_index = 1 if self.current_player_index == 0 else 0  # use end_turn method
-            self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+            # 4. Check if there is a winner after the move
+            if Rules.is_winner(current_player):
+                self.game_over = True
+                self.ui.show_winner(current_player.player_id)
+                self.ui.clear_highlights() 
+                print(f"Player {current_player.player_id} wins!")
+                return
+
+            # 5. End the turn
+            self.end_turn()
             
         else:
             print(f"ILLEGAL MOVE: Blocked by rules!")
@@ -74,6 +90,8 @@ class GameController:
         2. Checks Rules.is_valid_wall_placement().
         3. If valid, updates Board, deducts a wall from the player, and calls self.end_turn().
         """
+        if self.game_over: return # Ignore any actions if the game has ended
+
         current_player = self.players[self.current_player_index]
         # 1. Make sure they actually have walls left!
         if not current_player.has_walls_left():
@@ -88,8 +106,7 @@ class GameController:
             print(f"Player {current_player.player_id} legally placed wall at ({new_wall.row, new_wall.col})")
             self.ui.place_wall_visually(new_wall.row, new_wall.col, orientation)
             # 5. End the turn
-            self.current_player_index = 1 if self.current_player_index == 0 else 0      # use end_turn method
-            self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+            self.end_turn()
         else:
             print("ILLEGAL WALL ATTEMPT: Blocked by rules")
         
@@ -100,7 +117,36 @@ class GameController:
         If the new player is an AI (in PvE mode), it triggers the AI to calculate its move.
         Finally, tells the UI to update the visuals and turn indicators.
         """
-        pass
+        # 1. Switch to the next player
+        if self.game_over: return # Don't switch if the game has ended
+
+        self.current_player_index = 1 - self.current_player_index  # Toggles between 0 and 1 for two players
+        
+        # 2. Update UI and
+        self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+
+        # 3. Calculate new valid moves
+        self.update_move_highlights()
+
+        # 4. If PvE and it's the AI's turn, trigger the AI to move
+        if self.game_mode == GameMode.PVE and self.current_player_index == 1:
+            # 500ms delay so the AI move doesn't feel 'instant' and jarring
+            QtCore.QTimer.singleShot(500, self.execute_ai_turn)
+            self.execute_ai_turn()
+    
+    def update_move_highlights(self):
+        """
+        Calculates valid moves for the current player and tells the UI to highlight them.
+        This should be called at the end of every turn to update the highlighted valid moves.
+        """
+        self.ui.clear_highlights() # Clear old highlights first
+        curr = self.players[self.current_player_index]
+        # We check a radius of 2 around the player to catch normal moves and jumps
+        for r_off in range(-2, 3):
+            for c_off in range(-2, 3):
+                target = (curr.position[0] + r_off, curr.position[1] + c_off)
+                if Rules.is_valid_pawn_move(self.board, curr.position, target):
+                    self.ui.highlight_square(target[0], target[1])
 
     def execute_ai_turn(self):
         """
