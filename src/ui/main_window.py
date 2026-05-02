@@ -1,5 +1,18 @@
+import sys
+import os
+from pathlib import Path
+
+from matplotlib.pylab import dot, size
+
+# Add project root to sys.path so 'src' package is discoverable
+project_root = Path(__file__).resolve().parents[2]  # Goes up 2 levels: ui -> src -> project_root
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+# Now imports will work
 from PyQt6 import QtWidgets, QtGui, QtCore, uic
-from src.core.enums import ItemType, Orientation
+import src.core.enums
+from src.core.enums import ItemType, Orientation  # Optional: cleaner imports
 
 class MainWindow(QtWidgets.QMainWindow):
     SQUARE_SIZE = 50  # Pixels for the pawn squares
@@ -22,6 +35,9 @@ class MainWindow(QtWidgets.QMainWindow):
         # 3. Draw the board
         self.draw_board()
         self.draw_init_position()
+
+        # 4. This will keep track of any highlighted squares 
+        self.highlight_items = []
 
     def draw_init_position(self):
         # 1. Define the size of your pawn (e.g., 30% of the square size so it fits nicely)
@@ -97,7 +113,7 @@ class MainWindow(QtWidgets.QMainWindow):
         rect.setBrush(QtGui.QBrush(QtGui.QColor(color)))       
         # You can attach data to this rectangle so when it's clicked, 
         # you know exactly which logical board square it is!
-        rect.setData(0, ItemType.PAWN_SQUARE)
+        rect.setData(0, src.core.enums.ItemType.PAWN_SQUARE)
         rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
 
         return rect
@@ -121,7 +137,6 @@ class MainWindow(QtWidgets.QMainWindow):
         rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
 
         return rect
-    #TODO: MOVE HIGHLIGHTER
     #TODO: CLEAN THIS SHIT
     def place_wall_visually(self, logical_row, logical_col, orientation):
         # 1. Convert 1-based logical coordinates back to 0-based for pixel math
@@ -175,7 +190,34 @@ class MainWindow(QtWidgets.QMainWindow):
         elif player_id == 2:
             self.p2_pawn.setPos(new_x, new_y)        
     
-    # PyQt automatically calls it every time the user clicks anywhere in the window.
+    def clear_highlights(self):
+        """ Removes all green dots from the board """
+        for item in self.highlight_items:
+            self.scene.removeItem(item)
+        self.highlight_items = []
+    
+    def highlight_square(self, logical_row, logical_col): # amgad when u try don't click on the highlight point it self click any place on the square to move
+        r, c = logical_row - 1, logical_col - 1
+        size = 15
+        cx = c * (self.SQUARE_SIZE + self.GAP_SIZE) + (self.SQUARE_SIZE / 2) - (size / 2)
+        cy = r * (self.SQUARE_SIZE + self.GAP_SIZE) + (self.SQUARE_SIZE / 2) - (size / 2)
+    
+        dot = QtWidgets.QGraphicsEllipseItem(cx, cy, size, size)
+        dot.setBrush(QtGui.QColor(0, 255, 0, 100))  # Transparent Green
+        dot.setPen(QtGui.QPen(QtCore.Qt.PenStyle.NoPen))
+
+        dot.setAcceptedMouseButtons(QtCore.Qt.MouseButton.NoButton)
+    
+        dot.setZValue(1)  # Keep it visually on top
+        self.scene.addItem(dot)
+        self.highlight_items.append(dot)
+
+    def show_winner(self, player_id):
+        """ Displays win message and disables further interaction via controller flag """
+        color = "Blue" if player_id == 1 else "Red"
+        self.turnLabel.setText(f"GAME OVER: {color} Wins!")
+        QtWidgets.QMessageBox.information(self, "Victory!", f"Player {player_id} has reached the goal!")
+
     def mousePressEvent(self, event):
         # 1. Get the exact (X, Y) pixel coordinates of the click relative to the scene
         # We map the global window click down into the graphics view stage
