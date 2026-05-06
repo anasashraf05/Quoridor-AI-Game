@@ -1,6 +1,6 @@
 from PyQt6 import QtCore
 
-from src.core.enums import GameMode
+from src.core.enums import GameMode, ItemType
 from src.core.board import Board
 from src.core.player import Player
 from src.core.rules import Rules
@@ -44,7 +44,8 @@ class GameController:
         self.game_over = False
 
         self.update_move_highlights() # Highlight valid moves for the starting player
-        
+        if self.ui:
+            self.ui.update_walls_left_display()
 
     def handle_pawn_move_attempt(self, target_pos):
         """
@@ -103,12 +104,17 @@ class GameController:
         if(Rules.is_valid_wall_placement(self.board, new_wall)):
             self.board.place_wall(new_wall)
             current_player.use_wall()
+            if self.ui:
+                self.ui.update_walls_left_display()
             print(f"Player {current_player.player_id} legally placed wall at ({new_wall.row, new_wall.col})")
             self.ui.place_wall_visually(new_wall.row, new_wall.col, orientation)
             # 5. End the turn
             self.end_turn()
         else:
             print("ILLEGAL WALL ATTEMPT: Blocked by rules")
+
+            if self.ui:
+                self.ui.show_invalid_wall_feedback(x, y, orientation)
         
 
     def end_turn(self):
@@ -139,6 +145,9 @@ class GameController:
         Calculates valid moves for the current player and tells the UI to highlight them.
         This should be called at the end of every turn to update the highlighted valid moves.
         """
+        if not self.ui:
+            return
+        
         self.ui.clear_highlights() # Clear old highlights first
         curr = self.players[self.current_player_index]
         # We check a radius of 2 around the player to catch normal moves and jumps
@@ -147,6 +156,15 @@ class GameController:
                 target = (curr.position[0] + r_off, curr.position[1] + c_off)
                 if Rules.is_valid_pawn_move(self.board, curr.position, target):
                     self.ui.highlight_square(target[0], target[1])
+    
+    def is_valid_wall_placement_preview(self, x, y, orientation):
+        if self.game_over:
+            return False
+        current_player = self.players[self.current_player_index]
+        if not current_player.has_walls_left():
+            return False
+        new_wall = Wall(x, y, orientation)
+        return Rules.is_valid_wall_placement(self.board, new_wall)
 
     def execute_ai_turn(self):
         """

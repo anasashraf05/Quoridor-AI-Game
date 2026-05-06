@@ -39,6 +39,25 @@ class MainWindow(QtWidgets.QMainWindow):
         # 4. This will keep track of any highlighted squares 
         self.highlight_items = []
 
+        #5. Enable mouse tracking to capture clicks on the board
+        self.graphicsView.setMouseTracking(True)
+
+        #6. Track preview wall 
+        self.wall_preview_item = None
+
+        #7. Install event filter to capture mouse move events for wall preview
+        self.graphicsView.installEventFilter(self)
+
+        #8. Track invalid wall highlight & timer
+        self.invalid_wall_item = None
+        self.original_wall_brush = None
+        self.revert_timer = QtCore.QTimer(self)
+        self.revert_timer.setSingleShot(True)
+        self.revert_timer.timeout.connect(self._revert_invalid_wall)
+
+        #9. Set mouse tracking on the graphics view to capture hover events for wall placement preview
+        self.setMouseTracking(True)
+
     def draw_init_position(self):
         # 1. Define the size of your pawn (e.g., 30% of the square size so it fits nicely)
         radius = self.SQUARE_SIZE * 0.3  
@@ -115,6 +134,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # you know exactly which logical board square it is!
         rect.setData(0, src.core.enums.ItemType.PAWN_SQUARE)
         rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
+        rect.setData(2, "BASE") # Tag as a base square for resetting visuals
 
         return rect
 
@@ -135,8 +155,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         rect.setData(0, itemType)
         rect.setData(1, (row//2 + 1, col//2 + 1))       # One index based
+        rect.setData(2, "BASE") # Tag as a base wall for resetting visuals
+        rect.setAcceptHoverEvents(True) # Enable hover events for wall preview
 
         return rect
+    
     #TODO: CLEAN THIS SHIT
     def place_wall_visually(self, logical_row, logical_col, orientation):
         # 1. Convert 1-based logical coordinates back to 0-based for pixel math
@@ -167,6 +190,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 5. Add it to the stage!
         self.scene.addItem(solid_wall)
+
+        solid_wall.setData(2, "PLACED_WALL") # Tag as a placed wall for resetting visuals
 
     def move_pawn(self, player_id, logical_coords):
         row, col = logical_coords
@@ -219,24 +244,99 @@ class MainWindow(QtWidgets.QMainWindow):
         QtWidgets.QMessageBox.information(self, "Victory!", f"Player {player_id} has reached the goal!")
 
     def mousePressEvent(self, event):
-        # 1. Get the exact (X, Y) pixel coordinates of the click relative to the scene
-        # We map the global window click down into the graphics view stage
         view_point = self.graphicsView.mapFromGlobal(event.globalPosition().toPoint())
         scene_point = self.graphicsView.mapToScene(view_point)
 
-        # 2. Ask PyQt: "Is there an item exactly at this point?"
         clicked_item = self.scene.itemAt(scene_point, self.graphicsView.transform())
 
-        # 3. If they actually clicked a shape
-        if clicked_item is not None:
-            item_type = clicked_item.data(0)
-            logical_coords = clicked_item.data(1) 
+        if not clicked_item:
+            return
 
-            if item_type == ItemType.PAWN_SQUARE:
-                self.controller.handle_pawn_move_attempt((logical_coords[0], logical_coords[1]))
-                
-            elif item_type == ItemType.WALL_GAP_HORIZONTAL:
-                self.controller.handle_wall_placement_attempt(logical_coords[0], logical_coords[1], Orientation.HORIZONTAL)
+        item_type = clicked_item.data(0)
+        logical_coords = clicked_item.data(1)
 
-            elif item_type == ItemType.WALL_GAP_VERTICAL:
-                self.controller.handle_wall_placement_attempt(logical_coords[0], logical_coords[1], Orientation.VERTICAL)
+        if item_type is None or logical_coords is None:
+            return
+
+        if item_type == ItemType.PAWN_SQUARE:
+            self.controller.handle_pawn_move_attempt((logical_coords[0], logical_coords[1]))
+
+        elif item_type == ItemType.WALL_GAP_HORIZONTAL:
+            self.controller.handle_wall_placement_attempt(
+                logical_coords[0], logical_coords[1], Orientation.HORIZONTAL
+            )
+
+        elif item_type == ItemType.WALL_GAP_VERTICAL:
+            self.controller.handle_wall_placement_attempt(
+                logical_coords[0], logical_coords[1], Orientation.VERTICAL
+            )
+
+    def mouseMoveEvent(self, event):
+        view_point = self.graphicsView.mapFromGlobal(event.globalPosition().toPoint())
+        scene_point = self.graphicsView.mapToScene(view_point)
+
+        item = self.scene.itemAt(scene_point, self.graphicsView.transform())
+
+        if not item:
+            return
+
+        item_type = item.data(0)
+
+        if item_type not in (ItemType.WALL_GAP_HORIZONTAL, ItemType.WALL_GAP_VERTICAL):
+            return
+
+        coords = item.data(1)
+
+        if coords is None:
+            return
+
+        orient = (
+            Orientation.HORIZONTAL
+            if item_type == ItemType.WALL_GAP_HORIZONTAL
+            else Orientation.VERTICAL
+        )
+
+        is_valid = self.controller.is_valid_wall_placement_preview(
+            coords[0], coords[1], orient
+        )
+
+        if not is_valid:
+            if item != self.invalid_wall_item:
+                self._revert_invalid_wall()
+
+                self.original_wall_brush = item.brush()
+                item.setBrush(QtGui.QBrush(QtGui.QColor(220, 50, 50, 150)))
+                self.invalid_wall_item = item
+
+                self.revert_timer.start(500)
+
+    def _revert_invalid_wall(self):
+        if self.invalid_wall_item:
+            self.invalid_wall_item.setBrush(QtGui.QBrush(QtGui.QColor("white")))
+            self.invalid_wall_item = None
+
+    def update_walls_left_display(self):
+        """Updates the UI labels that already exist in your .ui file"""
+        if len(self.controller.players) >= 2:
+            p1_walls = self.controller.players[0].walls_left
+            p2_walls = self.controller.players[1].walls_left
+            # These names come DIRECTLY from your .ui file's objectName
+            self.p1WallLabel.setText(f"Player 1 Walls: {p1_walls}")
+            self.p2WallLabel.setText(f"Player 2 Walls: {p2_walls}")
+
+    def show_invalid_wall_feedback(self, row, col, orientation):
+        for item in self.scene.items():
+            coords = item.data(1)
+            item_type = item.data(0)
+
+            if coords == (row, col):
+                if (
+                    (orientation == Orientation.HORIZONTAL and item_type == ItemType.WALL_GAP_HORIZONTAL)
+                    or
+                    (orientation == Orientation.VERTICAL and item_type == ItemType.WALL_GAP_VERTICAL)
+                ):
+                    self.original_wall_brush = item.brush()
+                    item.setBrush(QtGui.QBrush(QtGui.QColor(255, 0, 0, 180)))
+                    self.invalid_wall_item = item
+                    self.revert_timer.start(500)
+                    break 
