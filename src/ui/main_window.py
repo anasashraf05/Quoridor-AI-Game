@@ -23,6 +23,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.draw_board()
         self.draw_init_position()
 
+    def update_wall_counts(self, players):
+    # assuming you have wallsLabel in your .ui file, or create one
+    self.wallsLabel.setText(f"P1 walls: {players[0].walls_left}  |  P2 walls: {players[1].walls_left}")
+
     def draw_init_position(self):
         # 1. Define the size of your pawn (e.g., 30% of the square size so it fits nicely)
         radius = self.SQUARE_SIZE * 0.3  
@@ -198,3 +202,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
             elif item_type == ItemType.WALL_GAP_VERTICAL:
                 self.controller.handle_wall_placement_attempt(logical_coords[0], logical_coords[1], Orientation.VERTICAL)
+
+    def show_winner(self, player_id):
+    msg = QtWidgets.QMessageBox()
+    msg.setWindowTitle("Game Over")
+    msg.setText(f"Player {player_id} wins! 🎉")
+    msg.exec()

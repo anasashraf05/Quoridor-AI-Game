@@ -1,5 +1,5 @@
 # src/ui/__init__.py
+# Pygame-based UI — MainWindow is no longer used; game_screen is the entry point.
+from .game_screen import GameScreen
 
-from .main_window import MainWindow
-
-__all__ = ['MainWindow']
+__all__ = ['GameScreen']
