@@ -2,7 +2,7 @@
 
 from .ai_player import AIPlayer
 from .minimax import Minimax
-from .evaluation import Evaluator
+from .evaluation import Evaluation
 
 __all__ = [
     'AIPlayer', 
