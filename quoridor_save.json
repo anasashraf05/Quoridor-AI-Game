@@ -1,0 +1,39 @@
+{
+  "current_player_index": 0,
+  "game_mode": 1,
+  "ai_difficulty": "MEDIUM",
+  "players": [
+    {
+      "player_id": 1,
+      "position": [
+        2,
+        5
+      ],
+      "walls_left": 9,
+      "goal_row": 9,
+      "is_ai": false
+    },
+    {
+      "player_id": 2,
+      "position": [
+        8,
+        5
+      ],
+      "walls_left": 9,
+      "goal_row": 1,
+      "is_ai": false
+    }
+  ],
+  "walls": [
+    {
+      "row": 3,
+      "col": 4,
+      "orientation": "HORIZONTAL"
+    },
+    {
+      "row": 3,
+      "col": 5,
+      "orientation": "VERTICAL"
+    }
+  ]
+}
