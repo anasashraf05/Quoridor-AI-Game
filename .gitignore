@@ -1,7 +1,17 @@
+# Python cache and compiled files
 __pycache__/
 *.pyc
+
+# Environment variables
 .env
+
+# Virtual environments
 venv/
+
+# IDEs and Editors
 .vscode/
 
-# PyQt generated files (optional)
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
