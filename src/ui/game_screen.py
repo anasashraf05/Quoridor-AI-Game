@@ -114,7 +114,7 @@ class GameScreen:
         self.mode_menu = "main"
         self._main_mode_buttons = self._make_main_mode_buttons()
         self._ai_mode_buttons   = self._make_ai_difficulty_buttons()
-        self._game_buttons      = self._make_game_buttons()
+        self._game_buttons      = self._make_game_buttons_v2()
 
     # -------------------------
     # Game loop
@@ -188,6 +188,16 @@ class GameScreen:
                     self._start_game(GameMode.PVE, difficulty)
                     return
 
+            if btn.get("_action") == "undo":
+                if self.controller:
+                    self.controller.undo()
+                    self._set_message("Undo performed.", "info")
+                return
+            if btn.get("_action") == "redo":
+                if self.controller:
+                    self.controller.redo()
+                    self._set_message("Redo performed.", "info")
+                return
             if btn.get("_action") == "reset":
                 self._start_game(self.game_mode, self.difficulty if self.game_mode == GameMode.PVE else DIFFICULTY.MEDIUM)
                 return
@@ -204,6 +214,18 @@ class GameScreen:
 
         if t == "mode_pve":
             self._start_game(GameMode.PVE, DIFFICULTY.MEDIUM)
+            return
+
+        if t == "undo":
+            if self.controller:
+                self.controller.undo()
+                self._set_message("Undo performed.", "info")
+            return
+
+        if t == "redo":
+            if self.controller:
+                self.controller.redo()
+                self._set_message("Redo performed.", "info")
             return
 
         # In-game actions only
@@ -480,6 +502,22 @@ class GameScreen:
              "mode": GameMode.PVE, "difficulty": DIFFICULTY.HARD},
             {"label": "← Back", "rect": pygame.Rect(cx - w // 2, cy + 98, w, h), "hovered": False,
              "_action": "back_to_main"},
+        ]
+
+    def _make_game_buttons_v2(self) -> list:
+        sx = BOARD_PX + BOARD_OFFSET_X + 20
+        sy = BOARD_OFFSET_Y + BOARD_PX - 180
+        return [
+            {"label": "↶  Undo (Z)", "rect": pygame.Rect(sx, sy, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "undo"},
+            {"label": "↷  Redo (Y)", "rect": pygame.Rect(sx, sy + 44, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "redo"},
+            {"label": "💾  Save", "rect": pygame.Rect(sx, sy + 88, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "save"},
+            {"label": "↺  Reset  (R)", "rect": pygame.Rect(sx, sy + 132, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "reset"},
+            {"label": "←  Back", "rect": pygame.Rect(sx, sy + 176, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "back"},
         ]
 
     def _make_game_buttons(self) -> list:

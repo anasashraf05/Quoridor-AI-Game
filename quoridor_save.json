@@ -6,7 +6,7 @@
     {
       "player_id": 1,
       "position": [
-        2,
+        3,
         5
       ],
       "walls_left": 9,
@@ -16,7 +16,7 @@
     {
       "player_id": 2,
       "position": [
-        8,
+        7,
         5
       ],
       "walls_left": 9,
@@ -28,12 +28,12 @@
     {
       "row": 3,
       "col": 4,
-      "orientation": "HORIZONTAL"
+      "orientation": "VERTICAL"
     },
     {
       "row": 3,
       "col": 5,
-      "orientation": "VERTICAL"
+      "orientation": "HORIZONTAL"
     }
   ]
 }

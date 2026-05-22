@@ -159,6 +159,10 @@ class InputHandler:
             return {"type": "mode_pvp"}
         if event.key == pygame.K_a:
             return {"type": "mode_pve"}
+        if event.key == pygame.K_z:
+            return {"type": "undo"}
+        if event.key == pygame.K_y:
+            return {"type": "redo"}
         return None
 
     def _handle_motion(self, pos, mode_screen: bool, buttons: list):
