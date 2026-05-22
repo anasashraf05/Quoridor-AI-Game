@@ -15,7 +15,7 @@ import time
 from src.ui.constants import *
 from src.ui import renderer
 from src.ui.input_handler import InputHandler
-from src.core.enums import GameMode, Orientation
+from src.core.enums import GameMode, Orientation, DIFFICULTY
 from src.controller.game_controller import GameController
 
 
@@ -50,6 +50,27 @@ class _UIAdapter:
     def update_wall_counts(self, players):
         # GameScreen reads wall counts directly from the controller — nothing to store
         pass
+
+    def update_walls_left_display(self):
+        # Pygame renders wall counts directly from controller state
+        pass
+
+    def reset_board_visuals(self):
+        # Pygame redraw logic is managed by the game loop and controller state
+        self._screen._refresh_valid_moves()
+
+    def clear_highlights(self):
+        self._screen._valid_moves = []
+
+    def highlight_square(self, row: int, col: int):
+        self._screen._valid_moves.append((row, col))
+
+    def show_invalid_wall_feedback(self, row, col, orientation):
+        # Pygame does not use invalid wall flash feedback in this adapter
+        pass
+
+    def schedule_ai(self):
+        self._screen._schedule_ai()
 
     def show_winner(self, player_id: int):
         self._screen._on_winner(player_id)
@@ -87,10 +108,13 @@ class GameScreen:
         # AI turn scheduling
         self._ai_pending = False
         self._ai_time    = 0
+        self.difficulty  = DIFFICULTY.MEDIUM
 
-        # Buttons
-        self._buttons      = self._make_mode_buttons()
-        self._game_buttons = self._make_game_buttons()
+        # Mode selection state
+        self.mode_menu = "main"
+        self._main_mode_buttons = self._make_main_mode_buttons()
+        self._ai_mode_buttons   = self._make_ai_difficulty_buttons()
+        self._game_buttons      = self._make_game_buttons()
 
     # -------------------------
     # Game loop
@@ -111,11 +135,11 @@ class GameScreen:
                     if self.controller:
                         self.controller.execute_ai_turn()
 
-            active_buttons = self._buttons if self.mode_selecting else self._game_buttons
+            active_buttons = self._active_mode_buttons() if self.mode_selecting else self._game_buttons
             for event in pygame.event.get():
                 action = self.input.process(event, self.mode_selecting, active_buttons)
                 if action:
-                    result = self._handle_action(action)
+                    result = self._handle_action(action, active_buttons)
                     if result == "quit":
                         running = False
 
@@ -128,28 +152,58 @@ class GameScreen:
     # Action dispatch
     # -------------------------
 
-    def _handle_action(self, action: dict):
+    def _handle_action(self, action: dict, active_buttons: list):
         t = action["type"]
 
         if t == "quit":
             return "quit"
 
         if t == "reset":
-            self._start_game(self.game_mode)
+            self._start_game(self.game_mode, self.difficulty if self.game_mode == GameMode.PVE else DIFFICULTY.MEDIUM)
             return
 
-        # Mode-selection buttons
-        if t == "btn_click" and self.mode_selecting:
+        if t == "btn_click":
             idx = action.get("index", 0)
-            self._start_game(GameMode.PVP if idx == 0 else GameMode.PVE)
-            return
+            btn = active_buttons[idx] if 0 <= idx < len(active_buttons) else None
+            if btn is None:
+                return
+
+            if self.mode_selecting:
+                if btn.get("_action") == "choose_ai":
+                    self.mode_menu = "ai"
+                    self._set_message("Choose AI difficulty:", "info")
+                    return
+                if btn.get("_action") == "load_saved":
+                    self._load_saved_game()
+                    return
+                if btn.get("_action") == "back_to_main":
+                    self.mode_menu = "main"
+                    self._set_message("Select a game mode to begin.", "info")
+                    return
+                if btn.get("mode") == GameMode.PVP:
+                    self._start_game(GameMode.PVP, DIFFICULTY.MEDIUM)
+                    return
+                if btn.get("mode") == GameMode.PVE:
+                    difficulty = btn.get("difficulty", DIFFICULTY.MEDIUM)
+                    self._start_game(GameMode.PVE, difficulty)
+                    return
+
+            if btn.get("_action") == "reset":
+                self._start_game(self.game_mode, self.difficulty if self.game_mode == GameMode.PVE else DIFFICULTY.MEDIUM)
+                return
+            if btn.get("_action") == "save":
+                self._save_game()
+                return
+            if btn.get("_action") == "back":
+                self._return_to_menu()
+                return
 
         if t == "mode_pvp":
-            self._start_game(GameMode.PVP)
+            self._start_game(GameMode.PVP, DIFFICULTY.MEDIUM)
             return
 
         if t == "mode_pve":
-            self._start_game(GameMode.PVE)
+            self._start_game(GameMode.PVE, DIFFICULTY.MEDIUM)
             return
 
         # In-game actions only
@@ -166,20 +220,24 @@ class GameScreen:
     # Game start / reset
     # -------------------------
 
-    def _start_game(self, mode: GameMode):
+    def _start_game(self, mode: GameMode, difficulty: DIFFICULTY = DIFFICULTY.MEDIUM):
         self.game_mode      = mode
+        self.difficulty     = difficulty
         self.mode_selecting = False
         self.winner         = None
         self._wall_owner    = {}
         self._ai_pending    = False
         self._valid_moves   = []
 
-        self.controller = GameController(mode=mode)
+        self.controller = GameController(mode=mode, ai_difficulty=difficulty)
         self.controller.ui = _UIAdapter(self)
         self.controller.start_game()
 
         self._refresh_valid_moves()
-        label = "Human vs Human" if mode == GameMode.PVP else "Human vs AI"
+        if mode == GameMode.PVP:
+            label = "Human vs Human"
+        else:
+            label = f"Human vs AI ({difficulty.name.title()})"
         self._set_message(f"{label} — Player 1 goes first!", "ok")
 
     # -------------------------
@@ -221,7 +279,7 @@ class GameScreen:
 
     def _on_pawn_moved(self, player_id: int, pos: tuple):
         """Called after a successful pawn move."""
-        if self.winner:
+        if self.winner or self.controller is None:
             return
         cur_idx = self.controller.current_player_index
         next_pid = self.controller.players[cur_idx].player_id
@@ -234,14 +292,13 @@ class GameScreen:
 
     def _on_wall_placed(self, row, col, orientation):
         """Called after a successful wall placement."""
-        if self.winner:
+        if self.winner or self.controller is None:
             return
         # Record wall ownership for colour coding
         walls = self.controller.board.get_all_walls()
         if walls:
-            prev_idx = 0 if self.controller.current_player_index == 1 else 1
-            prev_pid = self.controller.players[prev_idx].player_id
-            self._wall_owner[id(walls[-1])] = prev_pid
+            cur_pid = self.controller.players[self.controller.current_player_index].player_id
+            self._wall_owner[id(walls[-1])] = cur_pid
 
         cur_idx = self.controller.current_player_index
         next_pid = self.controller.players[cur_idx].player_id
@@ -305,7 +362,8 @@ class GameScreen:
         self.screen.fill(C_BG)
 
         if self.mode_selecting:
-            renderer.draw_mode_screen(self.screen, self._buttons)
+            subtitle = "Choose AI difficulty" if self.mode_menu == "ai" else "Select Game Mode"
+            renderer.draw_mode_screen(self.screen, self._active_mode_buttons(), subtitle)
             return
 
         renderer.draw_board(
@@ -332,7 +390,11 @@ class GameScreen:
             walls_left = {p.player_id: p.walls_left for p in self.controller.players}
             cur_player = self.controller.players[self.controller.current_player_index].player_id
 
-        mode_label = "Human vs Human" if self.game_mode == GameMode.PVP else "Human vs AI"
+        if self.game_mode == GameMode.PVP:
+            mode_label = "Human vs Human"
+        else:
+            mode_label = f"Human vs AI ({self.difficulty.name.title()})"
+
         renderer.draw_sidebar(self.screen, {
             "current_player":  cur_player,
             "walls_left":      walls_left,
@@ -357,19 +419,77 @@ class GameScreen:
     # Button factories
     # -------------------------
 
-    def _make_mode_buttons(self) -> list:
+    def _active_mode_buttons(self) -> list:
+        return self._ai_mode_buttons if self.mode_menu == "ai" else self._main_mode_buttons
+
+    def _load_saved_game(self):
+        self.controller = GameController()
+        self.controller.ui = _UIAdapter(self)
+        if not self.controller.load_game():
+            self._set_message("No saved game found.", "error")
+            self.controller = None
+            self.controller = None
+            return
+        self.game_mode = self.controller.game_mode
+        self.difficulty = self.controller.ai_difficulty
+        self.mode_selecting = False
+        self.winner = None
+        self._wall_owner = {}
+        self._valid_moves = []
+        self._set_message("Saved game loaded. Continue playing.", "ok")
+
+    def _save_game(self):
+        if not self.controller:
+            self._set_message("Nothing to save yet.", "error")
+            return
+        self.controller.save_game()
+        self._set_message("Game saved.", "ok")
+
+    def _return_to_menu(self):
+        self.mode_selecting = True
+        self.mode_menu = "main"
+        self.controller = None
+        self.winner = None
+        self._wall_owner = {}
+        self._valid_moves = []
+        self._set_message("Select a game mode to begin.", "info")
+
+    def _make_main_mode_buttons(self) -> list:
         cx = WINDOW_W // 2
         cy = WINDOW_H // 2
-        w, h = 240, 48
+        w, h = 280, 48
         return [
-            {"label": "Human  vs  Human", "rect": pygame.Rect(cx - w // 2, cy - 10, w, h), "hovered": False},
-            {"label": "Human  vs  AI",    "rect": pygame.Rect(cx - w // 2, cy + 54, w, h), "hovered": False},
+            {"label": "Human vs Human", "rect": pygame.Rect(cx - w // 2, cy - 94, w, h), "hovered": False,
+             "mode": GameMode.PVP, "difficulty": DIFFICULTY.MEDIUM},
+            {"label": "Human vs AI", "rect": pygame.Rect(cx - w // 2, cy - 30, w, h), "hovered": False,
+             "_action": "choose_ai"},
+            {"label": "Load Saved Game", "rect": pygame.Rect(cx - w // 2, cy + 34, w, h), "hovered": False,
+             "_action": "load_saved"},
+        ]
+
+    def _make_ai_difficulty_buttons(self) -> list:
+        cx = WINDOW_W // 2
+        cy = WINDOW_H // 2
+        w, h = 280, 48
+        return [
+            {"label": "Easy", "rect": pygame.Rect(cx - w // 2, cy - 94, w, h), "hovered": False,
+             "mode": GameMode.PVE, "difficulty": DIFFICULTY.EASY},
+            {"label": "Medium", "rect": pygame.Rect(cx - w // 2, cy - 30, w, h), "hovered": False,
+             "mode": GameMode.PVE, "difficulty": DIFFICULTY.MEDIUM},
+            {"label": "Hard", "rect": pygame.Rect(cx - w // 2, cy + 34, w, h), "hovered": False,
+             "mode": GameMode.PVE, "difficulty": DIFFICULTY.HARD},
+            {"label": "← Back", "rect": pygame.Rect(cx - w // 2, cy + 98, w, h), "hovered": False,
+             "_action": "back_to_main"},
         ]
 
     def _make_game_buttons(self) -> list:
         sx = BOARD_PX + BOARD_OFFSET_X + 20
-        sy = BOARD_OFFSET_Y + BOARD_PX - 44
+        sy = BOARD_OFFSET_Y + BOARD_PX - 100
         return [
-            {"label": "↺  Reset  (R)", "rect": pygame.Rect(sx, sy, SIDEBAR_W - 30, 34),
+            {"label": "💾  Save", "rect": pygame.Rect(sx, sy, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "save"},
+            {"label": "↺  Reset  (R)", "rect": pygame.Rect(sx, sy + 44, SIDEBAR_W - 30, 34),
              "hovered": False, "_action": "reset"},
+            {"label": "←  Back", "rect": pygame.Rect(sx, sy + 88, SIDEBAR_W - 30, 34),
+             "hovered": False, "_action": "back"},
         ]

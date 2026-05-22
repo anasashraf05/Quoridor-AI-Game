@@ -117,11 +117,10 @@ def draw_walls(surface: pygame.Surface, walls: list, player_id_map: dict,
     """
     from src.core.enums import Orientation
 
-    # Draw placed walls
+    # Draw placed walls in yellow
     for wall in walls:
         rect = wall_gap_rect(wall.row, wall.col, wall.orientation)
-        colour = player_id_map.get(id(wall), (160, 100, 40))   # warm brown default
-        pygame.draw.rect(surface, colour, rect)
+        pygame.draw.rect(surface, C_WALL_PLACED, rect)
         pygame.draw.rect(surface, (80, 50, 20), rect, 2)       # dark border
 
     # Draw hover preview
@@ -302,7 +301,7 @@ def draw_sidebar(surface: pygame.Surface, state: dict):
 # Mode selection screen
 # ---------------------------------------------------------------------------
 
-def draw_mode_screen(surface: pygame.Surface, buttons: list):
+def draw_mode_screen(surface: pygame.Surface, buttons: list, subtitle: str = "Select Game Mode"):
     """
     Draws the game-mode selection overlay.
 
@@ -320,7 +319,7 @@ def draw_mode_screen(surface: pygame.Surface, buttons: list):
     title = _font(36, bold=True).render("QUORIDOR", True, C_SIDEBAR_TITLE)
     surface.blit(title, title.get_rect(center=(cx, cy - 110)))
 
-    sub = _font(FONT_BODY_SIZE).render("Select Game Mode", True, C_TEXT_DIM)
+    sub = _font(FONT_BODY_SIZE).render(subtitle, True, C_TEXT_DIM)
     surface.blit(sub, sub.get_rect(center=(cx, cy - 68)))
 
     # Buttons

@@ -30,6 +30,7 @@ C_GAP_EMPTY     = (200, 180, 155)  # Empty wall gap
 
 C_WALL_P1       = (220,  60,  60)  # Red walls (Player 1)
 C_WALL_P2       = (60,  100, 220)  # Blue walls (Player 2)
+C_WALL_PLACED   = (235, 200,  50)  # Yellow placed walls
 C_WALL_HOVER    = (255, 200,  50)  # Yellow hover preview
 
 C_PAWN_P1       = (220,  60,  60)  # Player 1 pawn colour
