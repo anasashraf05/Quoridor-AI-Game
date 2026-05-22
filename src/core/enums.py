@@ -8,6 +8,7 @@ class ItemType(Enum):
     PAWN_SQUARE = auto()
     WALL_GAP_HORIZONTAL = auto()
     WALL_GAP_VERTICAL = auto()
+    HIGHLIGHT_DOT       = auto()
 
 class Orientation(Enum):
     VERTICAL = auto()

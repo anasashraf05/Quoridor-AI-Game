@@ -1,51 +1,56 @@
-from src.core.pathfinder import Pathfinder  
+from src.core.pathfinder import Pathfinder
 
-class Evaluator:
-    PATH_WEIGHT = 1.0
-    WALL_WEIGHT = 0.5
-    MOBILITY_WEIGHT = 0.2
-    TRAPPED_PENALTY = 10000.0
+
+class Evaluation:
+    PATH_WEIGHT = 10.0      # Distance to goal is the strongest signal
+    WALL_WEIGHT = 0.5       # Walls in hand = future flexibility
+    MOBILITY_WEIGHT = 0.2   # How many moves are available
+    TRAPPED_PENALTY = 100000.0
 
     @staticmethod
-    def evaluate_board(board, ai_player_id, human_player_id):
+    def evaluate_board(board, players, ai_player_id, human_player_id):
         """
-        Evaluates the current board state from the AI's perspective.
-        Positive score = AI is winning. Negative score = Human is winning.
+        Evaluates from the AI's perspective.
+        Positive  → AI is winning.
+        Negative  → Human is winning.
         """
-        # 1. Get current positions and goals
-        ai_pos = board.position(ai_player_id)
-        human_pos = board.position(human_player_id)
-        
-        ai_goal_row = board.goal_row(ai_player_id)   
-        human_goal_row = board.goal_row(human_player_id) 
+        ai_player    = next(p for p in players if p.player_id == ai_player_id)
+        human_player = next(p for p in players if p.player_id == human_player_id)
 
-        # 2. Calculate shortest paths using Pathfinder
-        ai_dist = Pathfinder.get_shortest_path_length(board, ai_pos, ai_goal_row)
+        ai_pos    = ai_player.position
+        human_pos = human_player.position
+
+        ai_goal_row    = ai_player.goal_row
+        human_goal_row = human_player.goal_row
+
+        # Win / loss terminal checks
+        if ai_pos[0] == ai_goal_row:
+            return Evaluation.TRAPPED_PENALTY
+        if human_pos[0] == human_goal_row:
+            return -Evaluation.TRAPPED_PENALTY
+
+        ai_dist    = Pathfinder.get_shortest_path_length(board, ai_pos, ai_goal_row)
         human_dist = Pathfinder.get_shortest_path_length(board, human_pos, human_goal_row)
 
-        # 3. Handle trapped states (paths blocked completely) and this should not happen as if there no path exist the wall placement should be invalid but just in case we will give it a score
+        # Handle trapped states
         if ai_dist == float('inf') and human_dist == float('inf'):
-            return 0.0  # Both trapped (draw/deadlock)
+            return 0.0
         if ai_dist == float('inf'):
-            return -Evaluator.TRAPPED_PENALTY  # AI trapped this means massive loss
+            return -Evaluation.TRAPPED_PENALTY
         if human_dist == float('inf'):
-            return Evaluator.TRAPPED_PENALTY   # Human trapped this means massive win
+            return Evaluation.TRAPPED_PENALTY
 
-        # 4. Primary heuristic: Race distance difference
-        # If human_dist > ai_dist, AI is closer so positive score
-        path_score = (human_dist - ai_dist) * Evaluator.PATH_WEIGHT
+        # Primary: distance advantage (fewer steps = better)
+        path_score = (human_dist - ai_dist) * Evaluation.PATH_WEIGHT
 
-        # 5. Secondary heuristic: Wall advantage
-        # More walls = better ability to block or create alternate routes
-        ai_walls = board.walls_left(ai_player_id)
-        human_walls = board.walls_left(human_player_id)
-        wall_score = (ai_walls - human_walls) * Evaluator.WALL_WEIGHT
+        # Secondary: wall count advantage
+        ai_walls    = ai_player.walls_left
+        human_walls = human_player.walls_left
+        wall_score  = (ai_walls - human_walls) * Evaluation.WALL_WEIGHT
 
-        # 6. Tertiary heuristic: Mobility / Central control
-        # More valid moves = less likely to be cornered, more flexibility
-        ai_mobility = len(Pathfinder.get_neighbors(board, ai_pos))
+        # Tertiary: mobility (reachable squares in one step)
+        ai_mobility    = len(Pathfinder.get_neighbors(board, ai_pos))
         human_mobility = len(Pathfinder.get_neighbors(board, human_pos))
-        mobility_score = (ai_mobility - human_mobility) * Evaluator.MOBILITY_WEIGHT
+        mobility_score = (ai_mobility - human_mobility) * Evaluation.MOBILITY_WEIGHT
 
-        # 7. Combine scores
         return path_score + wall_score + mobility_score

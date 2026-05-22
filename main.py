@@ -6,25 +6,60 @@ from src.controller import GameController
 from src.ui import MainWindow
 from src.core.enums import GameMode
 
+from PyQt6.QtWidgets import QInputDialog
+
+def choose_settings():
+    mode, ok = QInputDialog.getItem(
+        None,
+        "Game Mode",
+        "Choose Mode:",
+        ["Player vs Player", "Player vs AI"],
+        0,
+        False
+    )
+
+    if not ok:
+        sys.exit()
+
+    if mode == "Player vs Player":
+        return GameMode.PVP, None
+
+    difficulty, ok = QInputDialog.getItem(
+        None,
+        "Difficulty",
+        "Choose AI Difficulty:",
+        ["Easy", "Medium", "Hard"],
+        1,
+        False
+    )
+
+    if not ok:
+        sys.exit()
+
+    from src.core.enums import DIFFICULTY
+
+    diff_map = {
+        "Easy": DIFFICULTY.EASY,
+        "Medium": DIFFICULTY.MEDIUM,
+        "Hard": DIFFICULTY.HARD
+    }
+
+    return GameMode.PVE, diff_map[difficulty]
+
+
 def main():
-    # 1. Initialize the Qt Application (Required for any Qt program)
     app = QApplication(sys.argv)
-    
-    # 2. Create the Game Controller (The middleman)
-    # Defaulting to Player vs Player for now!
-    controller = GameController(mode= GameMode.PVP)
-    
-    # 3. Create the UI Window, passing it the controller so the UI can send click events
+
+    mode, difficulty = choose_settings()
+
+    controller = GameController(mode=mode, ai_difficulty=difficulty)
+
     window = MainWindow(controller)
-    
-    # 4. Give the controller a reference to the UI so it can update the screen
     controller.ui = window
+
     controller.start_game()
-    
-    # 5. Show the window!
+
     window.show()
-    
-    # 6. Start the Qt event loop (this keeps the window open and listening for clicks)
     sys.exit(app.exec())
 
 if __name__ == "__main__":

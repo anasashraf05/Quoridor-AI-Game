@@ -1,162 +1,281 @@
+import copy
+import json
+import os
+
 from PyQt6 import QtCore
 
-from src.core.enums import GameMode, ItemType
+from src.core.enums import GameMode, DIFFICULTY
 from src.core.board import Board
 from src.core.player import Player
 from src.core.rules import Rules
 from src.core.wall import Wall
-from PyQt6.QtCore import QTimer
+from src.ai.ai_player import AIPlayer
+from src.core.enums import Orientation
+
+
+SAVE_FILE = "quoridor_save.json"
+
 
 class GameController:
-    def __init__(self, mode = GameMode.PVP):
-        """
-        Initializes the entire game state.
-        mode: "PvP" (Human vs Human) or "PvE" (Human vs AI)
-        """
-        # Here you will instantiate your Board, Players, and AI
-        self.board = None  
+    def __init__(self, mode=GameMode.PVP, ai_difficulty=DIFFICULTY.MEDIUM):
+        self.board = None
         self.players = []
         self.current_player_index = 0
         self.game_mode = mode
-        
-        # You will attach your UI window here later so the controller can talk to it
-        self.ui = None 
-        self.game_over = False # Flag to track if the game has ended
-
-    def start_game(self):
-        """
-        Resets the board, places pawns in starting positions, and tells the UI to draw.
-        """
-        # 1. Create the physical board
-        self.board = Board()
-        
-        # 2. Create Player 1 (top row, middle column) and Player 2 (bottom row, middle column)
-        self.players = [
-            Player(player_id=1, start_pos=(1, 5), goal_row=9),
-            Player(player_id=2, start_pos=(9, 5), goal_row=1)
-        ]
-        
-        # 3. Tell the board where the players are starting
-        self.board.move_pawn(1, (1, 5))
-        self.board.move_pawn(2, (9, 5))
-        
-        self.current_player_index = 0
+        self.ai_difficulty = ai_difficulty
+        self.ui = None
         self.game_over = False
 
-        self.update_move_highlights() # Highlight valid moves for the starting player
+        # Undo / Redo stacks — each entry is a deep snapshot of (board, players, current_player_index)
+        self._undo_stack = []
+        self._redo_stack = []
+
+    # ------------------------------------------------------------------ #
+    #  Game lifecycle
+    # ------------------------------------------------------------------ #
+
+    def start_game(self):
+        self.board = Board()
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self.game_over = False
+        self.current_player_index = 0
+
+        if self.game_mode == GameMode.PVP:
+            self.players = [
+                Player(player_id=1, start_pos=(1, 5), goal_row=9),
+                Player(player_id=2, start_pos=(9, 5), goal_row=1),
+            ]
+        else:  # PvE
+            self.players = [
+                Player(player_id=1, start_pos=(1, 5), goal_row=9),
+                AIPlayer(player_id=2, start_position=(9, 5), goal_row=1,
+                         difficulty=self.ai_difficulty),
+            ]
+
+        self.board.move_pawn(1, (1, 5))
+        self.board.move_pawn(2, (9, 5))
+
         if self.ui:
             self.ui.update_walls_left_display()
+            self.ui.turnLabel.setText("Player 1's Turn")
+
+        self.update_move_highlights()
+
+    def reset_game(self):
+        """Restart safely without crashing"""
+        if not self.ui:
+            return
+
+        # 1. Stop any timers / highlights
+        self.ui.revert_timer.stop()
+        self.ui._revert_invalid_wall()
+
+        # 2. FULL UI RESET (clean state)
+        self.ui.scene.clear()
+        self.ui.draw_board()
+        self.ui.draw_init_position()
+
+        # 3. Reset logic AFTER UI is ready
+        self.start_game()
+
+    # ------------------------------------------------------------------ #
+    #  Snapshot helpers (undo / redo)
+    # ------------------------------------------------------------------ #
+
+    def _snapshot(self):
+        return {
+            "board":   copy.deepcopy(self.board),
+            "players": copy.deepcopy(self.players),
+            "index":   self.current_player_index,
+        }
+
+    def _restore(self, snapshot):
+        self.board = snapshot["board"]
+        self.players = snapshot["players"]
+        self.current_player_index = snapshot["index"]
+        self.game_over = False
+
+    def undo(self):
+        if not self._undo_stack:
+            return
+        self._redo_stack.append(self._snapshot())
+        self._restore(self._undo_stack.pop())
+        self._refresh_ui_after_state_change()
+
+    def redo(self):
+        if not self._redo_stack:
+            return
+        self._undo_stack.append(self._snapshot())
+        self._restore(self._redo_stack.pop())
+        self._refresh_ui_after_state_change()
+
+    def _refresh_ui_after_state_change(self):
+        if not self.ui:
+            return
+        self.ui.reset_board_visuals()
+        # Redraw all placed walls
+        for w in self.board.walls:
+            self.ui.place_wall_visually(w.row, w.col, w.orientation)
+        # Redraw pawn positions
+        for p in self.players:
+            self.ui.move_pawn(p.player_id, p.position)
+        self.ui.update_walls_left_display()
+        self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
+        self.update_move_highlights()
+
+    # ------------------------------------------------------------------ #
+    #  Save / Load
+    # ------------------------------------------------------------------ #
+
+    def save_game(self):
+        state = {
+            "current_player_index": self.current_player_index,
+            "game_mode": self.game_mode.value if hasattr(self.game_mode, "value") else str(self.game_mode),
+            "players": [
+                {
+                    "player_id":  p.player_id,
+                    "position":   list(p.position),
+                    "walls_left": p.walls_left,
+                    "goal_row":   p.goal_row,
+                    "is_ai":      isinstance(p, AIPlayer),
+                }
+                for p in self.players
+            ],
+            "walls": [
+                {
+                    "row": w.row,
+                    "col": w.col,
+                    "orientation": w.orientation.value if hasattr(w.orientation, "value") else str(w.orientation),
+                }
+                for w in self.board.walls
+            ],
+        }
+        with open(SAVE_FILE, "w") as f:
+            json.dump(state, f, indent=2)
+        print(f"Game saved to {SAVE_FILE}")
+
+    def load_game(self):
+        if not os.path.exists(SAVE_FILE):
+            print("No save file found.")
+            return False
+
+        with open(SAVE_FILE, "r") as f:
+            state = json.load(f)
+
+        self.board = Board()
+        self.players = []
+
+        for pd in state["players"]:
+            pos = tuple(pd["position"])
+            if pd["is_ai"]:
+                p = AIPlayer(
+                    player_id=pd["player_id"],
+                    start_position=pos,
+                    goal_row=pd["goal_row"],
+                    difficulty=self.ai_difficulty,
+                )
+            else:
+                p = Player(player_id=pd["player_id"], start_pos=pos, goal_row=pd["goal_row"])
+            p.walls_left = pd["walls_left"]
+            self.players.append(p)
+            self.board.move_pawn(p.player_id, pos)
+
+        for wd in state["walls"]:
+            orient = Orientation.HORIZONTAL if "HORIZ" in wd["orientation"].upper() else Orientation.VERTICAL
+            w = Wall(wd["row"], wd["col"], orient)
+            self.board.place_wall(w)
+
+        self.current_player_index = state["current_player_index"]
+        self.game_over = False
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+
+        self._refresh_ui_after_state_change()
+        print("Game loaded.")
+        return True
+
+    # ------------------------------------------------------------------ #
+    #  Move handling
+    # ------------------------------------------------------------------ #
 
     def handle_pawn_move_attempt(self, target_pos):
-        """
-        Called by the UI when a human clicks a square to move their pawn.
-        1. Checks Rules.is_valid_pawn_move().
-        2. If valid, updates Board.
-        3. Checks Rules.is_winner()[cite: 12].
-        4. If no winner, calls self.end_turn().
-        """
-        if self.game_over: return # Ignore any actions if the game has ended
-
+        if self.game_over:
+            return
+        # Ignore clicks while it's the AI's turn
         current_player = self.players[self.current_player_index]
-        
-        # 1. THE REFEREE CHECK: Pass the board, the start, and the target!
+        if isinstance(current_player, AIPlayer):
+            return
+
         if Rules.is_valid_pawn_move(self.board, current_player.position, target_pos):
-            
-            # 2. If valid, update the core rules and board
+            self._undo_stack.append(self._snapshot())
+            self._redo_stack.clear()
+
             current_player.position = target_pos
             self.board.move_pawn(current_player.player_id, target_pos)
-            print(f"Player {current_player.player_id} legally moved to {target_pos}")
-            
-            # 3. Update the UI
             self.ui.move_pawn(current_player.player_id, target_pos)
 
-            # 4. Check if there is a winner after the move
             if Rules.is_winner(current_player):
                 self.game_over = True
                 self.ui.show_winner(current_player.player_id)
-                self.ui.clear_highlights() 
-                print(f"Player {current_player.player_id} wins!")
+                self.ui.clear_highlights()
                 return
 
-            # 5. End the turn
             self.end_turn()
-            
         else:
-            print(f"ILLEGAL MOVE: Blocked by rules!")
+            print("ILLEGAL MOVE")
 
     def handle_wall_placement_attempt(self, x, y, orientation):
-        """
-        Called by the UI when a human attempts to place a wall.
-        1. Checks if current player has walls left.
-        2. Checks Rules.is_valid_wall_placement().
-        3. If valid, updates Board, deducts a wall from the player, and calls self.end_turn().
-        """
-        if self.game_over: return # Ignore any actions if the game has ended
-
-        current_player = self.players[self.current_player_index]
-        # 1. Make sure they actually have walls left!
-        if not current_player.has_walls_left():
-            print(f"Player {current_player.player_id} is out of walls!")
+        if self.game_over:
             return
-        
+        current_player = self.players[self.current_player_index]
+        if isinstance(current_player, AIPlayer):
+            return
+
+        if not current_player.has_walls_left():
+            print("No walls left!")
+            return
+
         new_wall = Wall(x, y, orientation)
-        
-        if(Rules.is_valid_wall_placement(self.board, new_wall)):
+        if Rules.is_valid_wall_placement(self.board, new_wall):
+            self._undo_stack.append(self._snapshot())
+            self._redo_stack.clear()
+
             self.board.place_wall(new_wall)
             current_player.use_wall()
-            if self.ui:
-                self.ui.update_walls_left_display()
-            print(f"Player {current_player.player_id} legally placed wall at ({new_wall.row, new_wall.col})")
+            self.ui.update_walls_left_display()
             self.ui.place_wall_visually(new_wall.row, new_wall.col, orientation)
-            # 5. End the turn
             self.end_turn()
         else:
-            print("ILLEGAL WALL ATTEMPT: Blocked by rules")
-
+            print("ILLEGAL WALL")
             if self.ui:
                 self.ui.show_invalid_wall_feedback(x, y, orientation)
-        
+
+    # ------------------------------------------------------------------ #
+    #  Turn management
+    # ------------------------------------------------------------------ #
 
     def end_turn(self):
-        """
-        Switches current_player_index to the next player.
-        If the new player is an AI (in PvE mode), it triggers the AI to calculate its move.
-        Finally, tells the UI to update the visuals and turn indicators.
-        """
-        # 1. Switch to the next player
-        if self.game_over: return # Don't switch if the game has ended
-
-        self.current_player_index = 1 - self.current_player_index  # Toggles between 0 and 1 for two players
-        
-        # 2. Update UI and
+        if self.game_over:
+            return
+        self.current_player_index = 1 - self.current_player_index
         self.ui.turnLabel.setText(f"Player {self.current_player_index + 1}'s Turn")
-
-        # 3. Calculate new valid moves
         self.update_move_highlights()
 
-        # 4. If PvE and it's the AI's turn, trigger the AI to move
         if self.game_mode == GameMode.PVE and self.current_player_index == 1:
-            # 500ms delay so the AI move doesn't feel 'instant' and jarring
             QtCore.QTimer.singleShot(500, self.execute_ai_turn)
-            self.execute_ai_turn()
-    
+
     def update_move_highlights(self):
-        """
-        Calculates valid moves for the current player and tells the UI to highlight them.
-        This should be called at the end of every turn to update the highlighted valid moves.
-        """
         if not self.ui:
             return
-        
-        self.ui.clear_highlights() # Clear old highlights first
+        self.ui.clear_highlights()
         curr = self.players[self.current_player_index]
-        # We check a radius of 2 around the player to catch normal moves and jumps
         for r_off in range(-2, 3):
             for c_off in range(-2, 3):
                 target = (curr.position[0] + r_off, curr.position[1] + c_off)
                 if Rules.is_valid_pawn_move(self.board, curr.position, target):
                     self.ui.highlight_square(target[0], target[1])
-    
+
     def is_valid_wall_placement_preview(self, x, y, orientation):
         if self.game_over:
             return False
@@ -166,9 +285,40 @@ class GameController:
         new_wall = Wall(x, y, orientation)
         return Rules.is_valid_wall_placement(self.board, new_wall)
 
+    # ------------------------------------------------------------------ #
+    #  AI turn
+    # ------------------------------------------------------------------ #
+
     def execute_ai_turn(self):
-        """
-        Asks the AIPlayer for its best move, then automatically executes it 
-        (either moving a pawn or placing a wall) and ends the turn.
-        """
-        pass
+        if self.game_over:
+            return
+        ai_player = self.players[self.current_player_index]
+        if not isinstance(ai_player, AIPlayer):
+            return
+
+        action = ai_player.get_action(self.board, self.players)
+        if action is None:
+            return
+
+        self._undo_stack.append(self._snapshot())
+        self._redo_stack.clear()
+
+        if action["type"] == "move":
+            ai_player.position = action["pos"]
+            self.board.move_pawn(ai_player.player_id, action["pos"])
+            self.ui.move_pawn(ai_player.player_id, action["pos"])
+
+            if Rules.is_winner(ai_player):
+                self.game_over = True
+                self.ui.show_winner(ai_player.player_id)
+                self.ui.clear_highlights()
+                return
+
+        elif action["type"] == "wall":
+            w = action["wall"]
+            self.board.place_wall(w)
+            ai_player.use_wall()
+            self.ui.update_walls_left_display()
+            self.ui.place_wall_visually(w.row, w.col, w.orientation)
+
+        self.end_turn()
