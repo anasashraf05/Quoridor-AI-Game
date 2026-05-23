@@ -93,12 +93,17 @@ class Rules:
         return False
 
     @staticmethod
-    def is_valid_wall_placement(board, new_wall):
+    def is_valid_wall_placement(board, new_wall, players=None):
         """
         Checks if a wall placement is valid:
         1. Within board boundaries.
         2. Does not overlap or cross existing walls.
         3. Does not completely block either player's path to their goal.
+
+        players may be provided so the rule can validate against the actual
+        goal_row assigned to each player. If players is None, it falls back to
+        the legacy assumption that Player 1 must reach row 9 and Player 2 must
+        reach row 1.
         """
         wall_row = new_wall.row
         wall_col = new_wall.col
@@ -129,8 +134,24 @@ class Rules:
 
         # 3. PATH CHECK — temporarily place the wall and run BFS for both players
         board.walls.append(new_wall)
-        p1_ok = Pathfinder.path_exists(board, board.get_pawn_position(1), [9])
-        p2_ok = Pathfinder.path_exists(board, board.get_pawn_position(2), [1])
+
+        if players is not None:
+            p1 = next((p for p in players if p.player_id == 1), None)
+            p2 = next((p for p in players if p.player_id == 2), None)
+            p1_ok = True
+            p2_ok = True
+            if p1 is not None:
+                p1_ok = Pathfinder.path_exists(board,
+                                               board.get_pawn_position(1),
+                                               {p1.goal_row})
+            if p2 is not None:
+                p2_ok = Pathfinder.path_exists(board,
+                                               board.get_pawn_position(2),
+                                               {p2.goal_row})
+        else:
+            p1_ok = Pathfinder.path_exists(board, board.get_pawn_position(1), [9])
+            p2_ok = Pathfinder.path_exists(board, board.get_pawn_position(2), [1])
+
         board.walls.pop()
 
         if not (p1_ok and p2_ok):
