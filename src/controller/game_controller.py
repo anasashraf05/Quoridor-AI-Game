@@ -41,18 +41,18 @@ class GameController:
 
         if self.game_mode == GameMode.PVP:
             self.players = [
-                Player(player_id=1, start_pos=(1, 5), goal_row=9),
-                Player(player_id=2, start_pos=(9, 5), goal_row=1),
+                Player(player_id=1, start_pos=(9, 5), goal_row=1),
+                Player(player_id=2, start_pos=(1, 5), goal_row=9),
             ]
         else:  # PvE
             self.players = [
-                Player(player_id=1, start_pos=(1, 5), goal_row=9),
-                AIPlayer(player_id=2, start_position=(9, 5), goal_row=1,
+                Player(player_id=1, start_pos=(9, 5), goal_row=1),
+                AIPlayer(player_id=2, start_position=(1, 5), goal_row=9,
                          difficulty=self.ai_difficulty),
             ]
 
-        self.board.move_pawn(1, (1, 5))
-        self.board.move_pawn(2, (9, 5))
+        for player in self.players:
+            self.board.move_pawn(player.player_id, player.position)
 
         if self.ui:
             self.ui.update_walls_left_display()
@@ -163,12 +163,13 @@ class GameController:
 
         self.board   = Board()
         self.players = []
+        loaded_difficulty = DIFFICULTY[state.get("ai_difficulty", self.ai_difficulty.name)]
 
         for pd in state["players"]:
             pos = tuple(pd["position"])
             if pd["is_ai"]:
                 p = AIPlayer(player_id=pd["player_id"], start_position=pos,
-                             goal_row=pd["goal_row"], difficulty=self.ai_difficulty)
+                             goal_row=pd["goal_row"], difficulty=loaded_difficulty)
             else:
                 p = Player(player_id=pd["player_id"], start_pos=pos,
                            goal_row=pd["goal_row"])
@@ -183,7 +184,8 @@ class GameController:
             self.board.place_wall(Wall(wd["row"], wd["col"], orient))
 
         self.current_player_index = state["current_player_index"]
-        self.game_mode            = GameMode(state.get("game_mode", self.game_mode.value))
+        default_game_mode = self.game_mode.value if self.game_mode is not None else GameMode.PVP.value
+        self.game_mode            = GameMode(state.get("game_mode", default_game_mode))
         self.ai_difficulty        = DIFFICULTY[state.get("ai_difficulty", self.ai_difficulty.name)]
         self.game_over            = False
         self._undo_stack.clear()
@@ -234,7 +236,7 @@ class GameController:
             return
 
         new_wall = Wall(x, y, orientation)
-        if Rules.is_valid_wall_placement(self.board, new_wall):
+        if Rules.is_valid_wall_placement(self.board, new_wall, self.players):
             self._undo_stack.append(self._snapshot())
             self._redo_stack.clear()
 
