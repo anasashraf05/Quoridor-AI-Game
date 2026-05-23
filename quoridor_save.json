@@ -1,37 +1,32 @@
 {
   "current_player_index": 0,
-  "game_mode": 1,
-  "ai_difficulty": "MEDIUM",
+  "game_mode": 2,
+  "ai_difficulty": "EASY",
   "players": [
     {
       "player_id": 1,
       "position": [
-        3,
-        5
-      ],
-      "walls_left": 9,
-      "goal_row": 9,
-      "is_ai": false
-    },
-    {
-      "player_id": 2,
-      "position": [
-        7,
+        8,
         5
       ],
       "walls_left": 9,
       "goal_row": 1,
       "is_ai": false
+    },
+    {
+      "player_id": 2,
+      "position": [
+        2,
+        6
+      ],
+      "walls_left": 10,
+      "goal_row": 9,
+      "is_ai": true
     }
   ],
   "walls": [
     {
-      "row": 3,
-      "col": 4,
-      "orientation": "VERTICAL"
-    },
-    {
-      "row": 3,
+      "row": 2,
       "col": 5,
       "orientation": "HORIZONTAL"
     }
