@@ -102,7 +102,7 @@ def draw_board(surface: pygame.Surface, valid_moves: list, selected_pos):
 
 
 def draw_walls(surface: pygame.Surface, walls: list, player_id_map: dict,
-               hover_wall=None):
+               hover_wall=None, hover_invalid=False):
     """
     Draws all placed walls, plus an optional hover preview.
 
@@ -114,6 +114,7 @@ def draw_walls(surface: pygame.Surface, walls: list, player_id_map: dict,
                           we fall back to a neutral brown colour)
         hover_wall    -- (logical_row, logical_col, Orientation) tuple while user
                          is hovering over a gap, or None
+        hover_invalid -- bool indicating the preview location is invalid
     """
     from src.core.enums import Orientation
 
@@ -127,11 +128,19 @@ def draw_walls(surface: pygame.Surface, walls: list, player_id_map: dict,
     if hover_wall is not None:
         h_row, h_col, h_orient = hover_wall
         rect = wall_gap_rect(h_row, h_col, h_orient)
-        # Draw translucent yellow preview
+        if hover_invalid:
+            colour = C_WALL_INVALID
+            alpha = 180
+            border = 3
+        else:
+            colour = C_WALL_HOVER
+            alpha = 160
+            border = 2
+
         preview = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
-        preview.fill((*C_WALL_HOVER, 160))
+        preview.fill((*colour, alpha))
         surface.blit(preview, rect.topleft)
-        pygame.draw.rect(surface, C_WALL_HOVER, rect, 2)
+        pygame.draw.rect(surface, colour, rect, border)
 
 
 def draw_pawns(surface: pygame.Surface, positions: dict):
@@ -265,12 +274,18 @@ def draw_sidebar(surface: pygame.Surface, state: dict):
     msg_type = state.get("message_type", "info")
     msg_col  = {"ok": C_MSG_OK, "error": C_MSG_ERR, "info": C_MSG_INFO}.get(
                 msg_type, C_TEXT_LIGHT)
+    msg_font = _font(FONT_BODY_SIZE, bold=True)
 
     if msg:
-        for line in _wrap_text(msg, _font(FONT_SMALL_SIZE), SIDEBAR_W - 20):
-            lsurf = _font(FONT_SMALL_SIZE).render(line, True, msg_col)
-            surface.blit(lsurf, (sx + 8, y))
-            y += 18
+        lines = _wrap_text(msg, msg_font, SIDEBAR_W - 20)
+        box_height = len(lines) * (msg_font.get_height() + 4) + 10
+        box_rect = pygame.Rect(sx + 6, y - 4, SIDEBAR_W - 18, box_height)
+        pygame.draw.rect(surface, (40, 40, 55), box_rect, border_radius=8)
+
+        for line in lines:
+            lsurf = msg_font.render(line, True, msg_col)
+            surface.blit(lsurf, (sx + 12, y))
+            y += msg_font.get_height() + 4
 
     y += 6
     # Divider

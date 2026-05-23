@@ -15,6 +15,7 @@ import time
 from src.ui.constants import *
 from src.ui import renderer
 from src.ui.input_handler import InputHandler
+from src.ai.ai_player import AIPlayer
 from src.core.enums import GameMode, Orientation, DIFFICULTY
 from src.controller.game_controller import GameController
 
@@ -66,8 +67,7 @@ class _UIAdapter:
         self._screen._valid_moves.append((row, col))
 
     def show_invalid_wall_feedback(self, row, col, orientation):
-        # Pygame does not use invalid wall flash feedback in this adapter
-        pass
+        self._screen._show_invalid_wall_preview(row, col, orientation)
 
     def schedule_ai(self):
         self._screen._schedule_ai()
@@ -104,6 +104,10 @@ class GameScreen:
 
         # Wall ownership map  { id(wall_obj): player_id }  for colour coding
         self._wall_owner: dict = {}
+
+        # Invalid wall preview state
+        self._invalid_wall_preview = None
+        self._invalid_wall_until   = 0
 
         # AI turn scheduling
         self._ai_pending = False
@@ -372,6 +376,10 @@ class GameScreen:
 
         self._valid_moves = moves
 
+    def _show_invalid_wall_preview(self, row: int, col: int, orientation: Orientation):
+        self._invalid_wall_preview = (row, col, orientation)
+        self._invalid_wall_until = time.time() * 1000 + 450
+
     def _set_message(self, text: str, mtype: str = "info"):
         self.message      = text
         self.message_type = mtype
@@ -395,11 +403,22 @@ class GameScreen:
         )
 
         hover_wall = self.input.get_hover_wall() if not self.winner else None
+        if self._invalid_wall_preview and time.time() * 1000 <= self._invalid_wall_until:
+            hover_wall = self._invalid_wall_preview
+            hover_invalid = True
+        else:
+            hover_invalid = False
+            if self.controller and hover_wall is not None:
+                hover_invalid = not self.controller.is_valid_wall_placement_preview(
+                    hover_wall[0], hover_wall[1], hover_wall[2]
+                )
+
         renderer.draw_walls(
             self.screen,
             walls=self.controller.board.get_all_walls() if self.controller else [],
             player_id_map=self._wall_owner,
             hover_wall=hover_wall,
+            hover_invalid=hover_invalid,
         )
 
         if self.controller:
@@ -457,7 +476,10 @@ class GameScreen:
         self.mode_selecting = False
         self.winner = None
         self._wall_owner = {}
-        self._valid_moves = []
+        self._refresh_valid_moves()
+        if (self.game_mode == GameMode.PVE and
+                isinstance(self.controller.players[self.controller.current_player_index], AIPlayer)):
+            self._schedule_ai()
         self._set_message("Saved game loaded. Continue playing.", "ok")
 
     def _save_game(self):
