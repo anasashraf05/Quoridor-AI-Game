@@ -178,7 +178,7 @@ Quoridor-AI-Game/
 
 ## Demo Video
 
-> 📹 **[https://drive.google.com/file/d/1MS3SollmXqDL4VF-NsKLnErDfp8tIIX4/view?usp=sharing](#)**
+>📹 [Watch the Demo Video](https://drive.google.com/file/d/1MS3SollmXqDL4VF-NsKLnErDfp8tIIX4/view?usp=sharing)
 
 The video covers:
 - Game setup and UI overview
