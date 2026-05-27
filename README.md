@@ -61,16 +61,14 @@ Quoridor is an abstract strategy board game invented by Mirko Marchesi (1997) an
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/<your-username>/Quoridor-AI-Game.git
+   git clone https://github.com/anasashraf05/Quoridor-AI-Game.git
    cd Quoridor-AI-Game
    ```
 
-2. **Install the required dependency:**
+2. **Install the required dependencies:**
    ```bash
-   pip install pygame
+   pip install pygame PyQt6
    ```
-
-   > No other third-party libraries are required. All game logic, AI, and UI are implemented from scratch.
 
 ---
 
