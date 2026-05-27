@@ -43,7 +43,6 @@ Quoridor is an abstract strategy board game invented by Mirko Marchesi (1997) an
 
 ## Screenshots
 
-> *(Add screenshots here after running the game — e.g., `docs/screenshot_menu.png`, `docs/screenshot_gameplay.png`)*
 
 | Mode Selection | Gameplay | Winner Screen |
 |:-:|:-:|:-:|
